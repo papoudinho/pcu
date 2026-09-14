@@ -88,9 +88,27 @@ canvas {
 
     function drawMole() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        //head
         ctx.beginPath();
         ctx.arc(moleX, moleY, moleRadius, 0, Math.PI * 2);
         ctx.fillStyle = "brown";
+        ctx.fill();
+
+        //eyes 
+        ctx.fillStyle = "black";
+
+        ctx.beginPath();
+        ctx.arc(moleX - 10, moleY - 7, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(moleX + 10, moleY - 7, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(moleX, moleY + 7, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "pink";
         ctx.fill();
 
     }
