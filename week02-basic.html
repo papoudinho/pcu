@@ -112,10 +112,13 @@ canvas {
         const dx = mouseX - moleX;
         const dy = mouseY - moleY;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        if(distance <= moleRadius) {
+       if(distance <= moleRadius) {
             score++;
             document.getElementById("score").textContent = score;
             moveMole();
+        } else {
+            score--;
+            document.getElementById("score").textContent = score;
         }
 
     });
