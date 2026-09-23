@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>공 잡기 게임</title>
+
+<style>
+body{
+    text-align:center;
+    font-family:Arial;
+}
+
+canvas{
+    border:2px solid black;
+}
+</style>
+
+</head>
+<body>
+
+<h1>공 잡기 게임</h1>
+
+<p>
+점수 :<span id="score">0</span> |
+남은 시간 : <span id="time">30</span>초 |
+속도 : <span id="speed">1</span> 단계
+</p>
+<p id="message"></p>
+
+<button onclick="startGame()">게임 시작</button><br>
+
+<canvas
+    id="gameCanvas"
+    width="600"
+    height="400">
+</canvas>
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const scoreText = document.getElementById("score");
+    const speedText = document.getElementById("speed");
+    const timeText = document.getElementById("time");
+    const messageText = document.getElementById("message");
+
+    let score = 0;
+    let speedLevel = 1;
+    let timeLeft = 30;
+    let gameRunning = false;
+    let timerId;
+    let animId;
+
+    function startGame () {
+        if (animId) {
+            cancelAnimationFrame(animId)
+        }
+
+        score = 0;
+        timeLeft = 30;
+        speedLevel = 1;
+
+
+        ball.x = 300;
+        ball.y = 200;
+        ball.dx = 3;
+        ball.dy = 2; 
+
+        gameRunning = true;
+
+        clearInterval(timerId);
+        timerId = setInterval(() => {
+            timeLeft--;
+            timeText.textContent = timeLeft;
+            if (timeLeft <= 0) endGame();
+        }, 1000);
+        drawGame();
+    }
+
+    function endGame () {
+        gameRunning = false;
+        clearInterval(timerId);
+
+        if ( animId) {
+            cancelAnimationFrame(animId)
+        }
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.font = '32px Arial';
+        ctx.fillStyle = "black";
+        ctx.textAlign = "center";
+        ctx.fillText("게임 종료!", canvas.width / 2, canvas.height/ 2 - 30 );
+        ctx.fillText("최종 점수 : " + score, canvas.width / 2, canvas.height/ 2 + 20);
+    }
+
+    const ball = {
+        x:300, y:200, radius: 25, dx: 3, dy: 2 
+    };
+
+   
+    function drawBall() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        //head
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        ctx.fillStyle = "brown";
+        ctx.fill();
+
+        //eyes 
+        ctx.fillStyle = "black";
+
+        ctx.beginPath();
+        ctx.arc(ball.x - 10, ball.y - 7, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(ball.x + 10, ball.y - 7, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y + 7, 5, 0, Math.PI);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "black";
+        ctx.stroke();
+    }
+    // drawBall();  
+
+    function moveBall() {
+        ball.x = Math.random() * (canvas.width - 80) + 40;
+        ball.y= Math.random() * (canvas.height - 80) + 40;
+        drawBall();
+    }
+
+    function updateBall() {
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+
+        if (ball.x + ball.radius > canvas.width || 
+            ball.x - ball.radius < 0) {
+            ball.dx = -ball.dx;
+        }
+
+        if (ball.y + ball.radius > canvas.height ||
+            ball.y - ball.radius < 0) {
+            ball.dy = -ball.dy;
+        }
+    }
+
+    function drawGame () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        drawBall();
+        updateBall();
+
+        animId = requestAnimationFrame(drawGame);
+    }
+    
+    canvas.addEventListener("click", function(event) {
+    if (!gameRunning) return;
+
+    const rect = canvas.getBoundingClientRect();
+
+    const mouseX =
+        (event.clientX - rect.left) *
+        (canvas.width / rect.width);
+
+    const mouseY =
+        (event.clientY - rect.top) *
+        (canvas.height / rect.height);
+
+    const dx = mouseX - ball.x;
+    const dy = mouseY - ball.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+   if (distance <= ball.radius) {
+    score += 2;
+
+    // Bonus de 3 secondes tous les 4 points
+    if (score % 4 === 0) {
+        timeLeft += 3;
+        timeText.textContent = timeLeft;
+
+        messageText.textContent = "시간 보너스! +3초";
+        messageText.style.color = "blue";
+    } else {
+        messageText.textContent = "성공! +2";
+        messageText.style.color = "green";
+    }
+
+    speedLevel++;
+    speedText.textContent = speedLevel;
+
+    ball.dx += ball.dx > 0 ? 0.5 : -0.5;
+    ball.dy += ball.dy > 0 ? 0.5 : -0.5;
+
+    moveBALLRandom();
+} else {
+    score--;
+
+    messageText.textContent = "실패! -1";
+    messageText.style.color = "red";
+}
+
+    scoreText.textContent = score;
+    speedText.textContent = speedLevel;
+});
+    
+    function moveBallRandom() {
+        ball.x = Math.random() * (canvas.width - ball.radius * 2) +
+        ball.radius;
+        ball.y = Math.random() * (canvas.height - ball.radius * 2) +
+        ball.radius;
+    }
+</script>
+</body>
+</html>
