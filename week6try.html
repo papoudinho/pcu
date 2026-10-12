@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Snake 게임</title>
+
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial;
+        }
+
+        canvas {
+            border: 2px solid black;
+            background: #f9f9f9;
+        }
+
+        #message {
+            height: 24px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Snake 게임</h1>
+
+    <p>
+        점수: <span id="score">0</span> |
+        최고 점수: <span id="highScore">0</span> |
+        레벨: <span id="level">1</span>
+    </p>
+
+    <p>조작: 방향키 ↑ ↓ ← → | 일시정지: P</p>
+    <p id="message">빨간 음식은 1점입니다.</p>
+
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const scoreText = document.getElementById("score");
+        const highScoreText = document.getElementById("highScore");
+        const levelText = document.getElementById("level");
+        const messageText = document.getElementById("message");
+
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+
+        const snakeColors = [
+            {head: "green", body: "limegreen"},
+            {head: "#0057b8", body: "deepskyblue"},
+            {head: "purple", body: "orchid"},
+            {head: "darkorange", body: "orange"},
+            {head: "darkred", body: "tomato"}
+        ];
+
+        let snake;
+        let foods;
+        let score;
+        let level;
+        let foodsEaten;
+        let goldenFoodPending;
+
+        let dx;
+        let dy;
+        let nextDx;
+        let nextDy;
+
+        let gameOver;
+        let isPaused;
+        let gameTimer;
+        let messageTimer;
+
+        let highScore =
+            Number(localStorage.getItem("snakeHighScore")) || 0;
+
+        highScoreText.textContent = highScore;
+
+        function drawTile(x, y, color) {
+            ctx.fillStyle = color;
+
+            ctx.fillRect(
+                x * gridSize,
+                y * gridSize,
+                gridSize - 2,
+                gridSize - 2
+            );
+        }
+
+        function drawSnake() {
+            const colorIndex = Math.min(
+                level - 1,
+                snakeColors.length - 1
+            );
+
+            const colors = snakeColors[colorIndex];
+
+            for (let i = 0; i < snake.length; i++) {
+                if (i === 0) {
+                    drawTile(
+                        snake[i].x,
+                        snake[i].y,
+                        colors.head
+                    );
+                } else {
+                    drawTile(
+                        snake[i].x,
+                        snake[i].y,
+                        colors.body
+                    );
+                }
+            }
+        }
+
+        function drawFoods() {
+            for (let i = 0; i < foods.length; i++) {
+                const food = foods[i];
+
+                if (food.isGolden) {
+                    drawTile(food.x, food.y, "gold");
+
+                    ctx.strokeStyle = "#b8860b";
+                    ctx.lineWidth = 2;
+
+                    ctx.strokeRect(
+                        food.x * gridSize,
+                        food.y * gridSize,
+                        gridSize - 2,
+                        gridSize - 2
+                    );
+                } else {
+                    drawTile(food.x, food.y, "red");
+                }
+            }
+        }
+
+        document.addEventListener(
+            "keydown",
+            function (event) {
+                if ([
+                    "ArrowUp",
+                    "ArrowDown",
+                    "ArrowLeft",
+                    "ArrowRight",
+                    "Space"
+                ].includes(event.code)) {
+                    event.preventDefault();
+                }
+
+                if (
+                    !event.repeat &&
+                    event.key.toLowerCase() === "p" &&
+                    !gameOver
+                ) {
+                    isPaused = !isPaused;
+
+                    if (isPaused) {
+                        showMessage(
+                            "일시정지",
+                            "purple",
+                            0
+                        );
+                    } else {
+                        showMessage(
+                            "게임을 계속합니다!",
+                            "black",
+                            1000
+                        );
+                    }
+
+                    drawGame();
+                    return;
+                }
+
+                if (
+                    !event.repeat &&
+                    event.code === "Space" &&
+                    gameOver
+                ) {
+                    restartGame();
+                    return;
+                }
+
+                if (!isPaused && !gameOver) {
+                    changeDirection(event);
+                }
+            }
+        );
+
+        function changeDirection(event) {
+            if (
+                event.key === "ArrowUp" &&
+                dy !== 1
+            ) {
+                nextDx = 0;
+                nextDy = -1;
+            }
+
+            if (
+                event.key === "ArrowDown" &&
+                dy !== -1
+            ) {
+                nextDx = 0;
+                nextDy = 1;
+            }
+
+            if (
+                event.key === "ArrowLeft" &&
+                dx !== 1
+            ) {
+                nextDx = -1;
+                nextDy = 0;
+            }
+
+            if (
+                event.key === "ArrowRight" &&
+                dx !== -1
+            ) {
+                nextDx = 1;
+                nextDy = 0;
+            }
+        }
+
+        function moveSnake() {
+            dx = nextDx;
+            dy = nextDy;
+
+            const head = {
+                x: snake[0].x + dx,
+                y: snake[0].y + dy
+            };
+
+            snake.unshift(head);
+
+            const foodIndex = foods.findIndex(
+                function (food) {
+                    return (
+                        head.x === food.x &&
+                        head.y === food.y
+                    );
+                }
+            );
+
+            const ateFood = foodIndex !== -1;
+
+            if (!ateFood) {
+                snake.pop();
+            }
+
+            if (checkCollision()) {
+                endGame();
+                return;
+            }
+
+            if (ateFood) {
+                eatFood(foodIndex);
+            }
+        }
+
+        function eatFood(foodIndex) {
+            const eatenFood =
+                foods.splice(foodIndex, 1)[0];
+
+            foodsEaten++;
+
+            if (eatenFood.isGolden) {
+                score += 3;
+
+                showMessage(
+                    "황금 음식! +3점",
+                    "#b8860b",
+                    1300
+                );
+            } else {
+                score++;
+            }
+
+            /*
+                Quatre aliments normaux sont mangés,
+                puis le cinquième sera doré.
+            */
+            if (foodsEaten % 5 === 4) {
+                goldenFoodPending = true;
+            }
+
+            if (score > highScore) {
+                highScore = score;
+                highScoreText.textContent = highScore;
+
+                localStorage.setItem(
+                    "snakeHighScore",
+                    highScore
+                );
+            }
+
+            updateLevel();
+            scoreText.textContent = score;
+            fillFoods();
+        }
+
+        function updateLevel() {
+            const newLevel =
+                Math.floor(score / 3) + 1;
+
+            if (newLevel !== level) {
+                level = newLevel;
+                levelText.textContent = level;
+
+                showMessage(
+                    "레벨 " + level +
+                    "! 뱀의 속도가 증가합니다.",
+                    "#0057b8",
+                    1500
+                );
+            }
+        }
+
+        function getFoodCount() {
+            return Math.min(level, 4);
+        }
+
+        function fillFoods() {
+            const wantedFoodCount =
+                getFoodCount();
+
+            while (
+                foods.length < wantedFoodCount
+            ) {
+                const isGolden =
+                    goldenFoodPending;
+
+                if (goldenFoodPending) {
+                    goldenFoodPending = false;
+                }
+
+                foods.push(
+                    createFood(isGolden)
+                );
+            }
+        }
+
+        function createFood(isGolden) {
+            let newFood;
+            let invalidPosition;
+
+            do {
+                newFood = {
+                    x: Math.floor(
+                        Math.random() * tileCount
+                    ),
+
+                    y: Math.floor(
+                        Math.random() * tileCount
+                    ),
+
+                    isGolden: isGolden
+                };
+
+                const onSnake =
+                    snake.some(function (part) {
+                        return (
+                            part.x === newFood.x &&
+                            part.y === newFood.y
+                        );
+                    });
+
+                const onAnotherFood =
+                    foods.some(function (food) {
+                        return (
+                            food.x === newFood.x &&
+                            food.y === newFood.y
+                        );
+                    });
+
+                invalidPosition =
+                    onSnake || onAnotherFood;
+
+            } while (invalidPosition);
+
+            return newFood;
+        }
+
+        function checkCollision() {
+            const head = snake[0];
+
+            if (
+                head.x < 0 ||
+                head.x >= tileCount ||
+                head.y < 0 ||
+                head.y >= tileCount
+            ) {
+                return true;
+            }
+
+            for (
+                let i = 1;
+                i < snake.length;
+                i++
+            ) {
+                if (
+                    head.x === snake[i].x &&
+                    head.y === snake[i].y
+                ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        function getGameSpeed() {
+            return Math.max(
+                100,
+                500 - (level - 1) * 60
+            );
+        }
+
+        function showMessage(
+            text,
+            color,
+            duration
+        ) {
+            clearTimeout(messageTimer);
+
+            messageText.textContent = text;
+            messageText.style.color = color;
+
+            if (duration > 0) {
+                messageTimer =
+                    setTimeout(function () {
+                        if (
+                            !gameOver &&
+                            !isPaused
+                        ) {
+                            messageText.textContent =
+                                "빨간 음식은 1점, " +
+                                "황금 음식은 3점입니다.";
+
+                            messageText.style.color =
+                                "black";
+                        }
+                    }, duration);
+            }
+        }
+
+        function drawOverlay(
+            title,
+            subtitle
+        ) {
+            ctx.fillStyle =
+                "rgba(0, 0, 0, 0.7)";
+
+            ctx.fillRect(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
+
+            ctx.fillStyle = "white";
+            ctx.textAlign = "center";
+            ctx.font = "32px Arial";
+
+            ctx.fillText(
+                title,
+                canvas.width / 2,
+                canvas.height / 2 - 20
+            );
+
+            ctx.font = "18px Arial";
+
+            ctx.fillText(
+                subtitle,
+                canvas.width / 2,
+                canvas.height / 2 + 25
+            );
+        }
+
+        function endGame() {
+            gameOver = true;
+            clearTimeout(gameTimer);
+
+            showMessage(
+                "게임 오버! 스페이스바를 " +
+                "누르면 다시 시작합니다.",
+                "red",
+                0
+            );
+        }
+
+        function drawGame() {
+            ctx.clearRect(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+            );
+
+            drawSnake();
+            drawFoods();
+
+            if (isPaused) {
+                drawOverlay(
+                    "일시정지",
+                    "P 키를 누르면 계속합니다."
+                );
+            }
+
+            if (gameOver) {
+                drawOverlay(
+                    "게임 오버!",
+                    "점수: " + score +
+                    " | 스페이스바: 다시 시작"
+                );
+            }
+        }
+
+        function gameLoop() {
+            if (gameOver) {
+                drawGame();
+                return;
+            }
+
+            if (!isPaused) {
+                moveSnake();
+            }
+
+            drawGame();
+
+            if (!gameOver) {
+                gameTimer = setTimeout(
+                    gameLoop,
+                    getGameSpeed()
+                );
+            }
+        }
+
+        function restartGame() {
+            clearTimeout(gameTimer);
+            clearTimeout(messageTimer);
+
+            snake = [
+                {x: 10, y: 10},
+                {x: 9, y: 10},
+                {x: 8, y: 10}
+            ];
+
+            foods = [];
+            score = 0;
+            level = 1;
+            foodsEaten = 0;
+            goldenFoodPending = false;
+
+            dx = 1;
+            dy = 0;
+            nextDx = 1;
+            nextDy = 0;
+
+            gameOver = false;
+            isPaused = false;
+
+            scoreText.textContent = score;
+            levelText.textContent = level;
+            highScoreText.textContent = highScore;
+
+            fillFoods();
+
+            showMessage(
+                "게임을 시작합니다!",
+                "black",
+                1000
+            );
+
+            drawGame();
+
+            gameTimer = setTimeout(
+                gameLoop,
+                getGameSpeed()
+            );
+        }
+
+        restartGame();
+    </script>
+
+</body>
+
+</html>
