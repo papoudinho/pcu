@@ -82,7 +82,7 @@
             bird.velocity = 0;
 
             pipes.length =  0;
-            scrore = 0;
+            score = 0;
             scoreText.textContent = 0;
 
             startCountdown();
@@ -175,12 +175,12 @@
         }
 
         function endGame() {
-            gameOver = false;
+            gameOver = true;
 
             ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            ctx.font("32px Arial");
+            ctx.font = "32px Arial";
             ctx.fillStyle = "white";
             ctx.textAlign = "center";
             ctx.fillText("게임 오버!", canvas.width / 2, canvas.height / 2 - 30);
@@ -205,6 +205,9 @@
             moveBird();
             movePipes();
             checkCollision();
+        
+            if(gameOver) return;
+
             drawBird();
             drawPipes();
             requestAnimationFrame(gameLoop);
