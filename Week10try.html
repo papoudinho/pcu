@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Flappy Bird</title>
+
+    <style>
+        body {
+            text-align: center;
+            font-family: Arial;
+        }
+
+        canvas {
+            border: 2px solid black;
+            background: skyblue;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Flappy Bird</h1>
+    <p>점수: <span id="score">0</span> | 최고 기록 : <span id="highScore">0</span></p>
+    <p>조작: Space 키 또는 마우스 클릭 <button id="restarBtn" onclick="restart(); this.blur();"> 다시 시작 </button></p>
+    <canvas id="gameCanvas" width="400" height="500"></canvas>
+    
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreText = document.getElementById("score");
+        const highScoreText = document.getElementById("highScore");
+
+        let score = 0;
+        let gameOver = false;
+        let countdown = 3;
+        let countdownTimer = null;
+
+        // Génération de positions aléatoires pour les étoiles du mode nuit
+        const stars = [];
+        for (let i = 0; i < 30; i++) {
+            stars.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: Math.random() * 1.5 + 0.5
+            });
+        }
+
+        const bird = {
+            x : 80, 
+            y : 250,
+            radius : 15,
+            velocity : 0,
+            gravity : 0.3,
+            jumpPower : -8
+        };
+
+        // Fonction d'arrière-plan (Jour ou Nuit selon le score)
+        function drawBackground() {
+            if (score >= 10) {
+                // Fond Bleu Nuit
+                ctx.fillStyle = "#0c1445";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Dessin de la lune
+                ctx.fillStyle = "#fffdf0";
+                ctx.beginPath();
+                ctx.arc(330, 60, 25, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Dessin des étoiles
+                ctx.fillStyle = "#ffffff";
+                for (let star of stars) {
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else {
+                // Fond Ciel de Jour
+                ctx.fillStyle = "skyblue";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+
+        function drawBird() {
+            ctx.save();
+            ctx.translate(bird.x, bird.y);
+
+            // Calcul de l'angle d'inclinaison selon la vitesse verticale
+            let angle = bird.velocity * 0.08;
+            if (angle < -0.35) angle = -0.35; // Maximum vers le haut (~ -20°)
+            if (angle > 1.2) angle = 1.2;     // Maximum vers le bas (~ +70°)
+
+            ctx.rotate(angle);
+
+            // Dessin du corps
+            ctx.beginPath();
+            ctx.arc(0, 0, bird.radius, 0, Math.PI * 2);
+            ctx.fillStyle = "yellow";
+            ctx.fill();
+
+            // Dessin de l'œil
+            ctx.fillStyle = "black";
+            ctx.beginPath();
+            ctx.arc(5, -5, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Dessin du bec
+            ctx.fillStyle = "orange";
+            ctx.beginPath();
+            ctx.moveTo(10, -2);
+            ctx.lineTo(20, 2);
+            ctx.lineTo(10, 6);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function moveBird() {
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
+
+            if(bird.y - bird.radius < 0 || bird.y + bird.radius > canvas.height) {
+                endGame();
+            }
+        }
+
+        function jump() {
+            if(gameOver || countdown > 0) return;
+            bird.velocity = bird.jumpPower;
+        }
+
+        document.addEventListener("keydown", function (event){
+            if (event.code === "Space"){
+                jump();
+            }
+        });
+
+        canvas.addEventListener("click", jump);
+
+        function restart() {
+            if(!gameOver) return;
+
+            bird.y = 250;
+            bird.velocity = 0;
+
+            pipes.length = 0;
+            score = 0;
+            scoreText.textContent = 0;
+            pipeGap = 200;
+
+            gameOver = false;
+            startCountdown();
+            gameLoop();
+        }
+
+        function startCountdown() {
+            countdown = 3;
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+            }
+
+            countdownTimer = setInterval(function () {
+                countdown--;
+                if (countdown <= 0) {
+                    clearInterval(countdownTimer);
+                }
+            }, 1000);
+        }
+
+        const pipes = [];
+        const pipeWidth = 69;
+        let pipeGap = 200;
+        let pipeSpeed = 3;
+
+        function createPipe() {
+            if (countdown > 0 || gameOver) return;
+            
+            pipeGap = Math.max(105, 200 - Math.floor(score / 5) * 5);
+
+            const topHeight = Math.random() * 220 + 50;
+            pipes.push({
+                x : canvas.width,
+                topHeight : topHeight,
+                bottomY : topHeight + pipeGap,
+                passed : false
+            });
+        }
+
+        function drawPipes() {
+            ctx.fillStyle = "green";
+
+            for (let pipe of pipes) {
+                ctx.fillRect(pipe.x, 0, pipeWidth, pipe.topHeight);
+                ctx.fillRect(pipe.x, pipe.bottomY, pipeWidth, canvas.height - pipe.bottomY);
+            }
+        }
+
+        function movePipes() {
+            for(let pipe of pipes) {
+                pipe.x -= pipeSpeed;
+                if(!pipe.passed && pipe.x + pipeWidth < bird.x) {
+                    score++;
+                    scoreText.textContent = score;
+                    pipe.passed = true;
+
+                    updateHighScore();
+                }
+            }
+            for(let i = pipes.length - 1; i >= 0; i--){
+                if(pipes[i].x + pipeWidth < 0){
+                    pipes.splice(i, 1);
+                }
+            }
+        }
+
+        function checkCollision() {
+            for(let pipe of pipes) {
+                const birdLeft = bird.x - bird.radius;
+                const birdRight = bird.x + bird.radius;
+                const birdTop = bird.y - bird.radius;
+                const birdBottom = bird.y + bird.radius;
+
+                const pipeLeft = pipe.x;
+                const pipeRight = pipe.x + pipeWidth;
+
+                const hitTopPipe = 
+                    birdRight > pipeLeft &&
+                    birdLeft < pipeRight &&
+                    birdTop < pipe.topHeight;
+
+                const hitBottomPipe = 
+                    birdRight > pipeLeft &&
+                    birdLeft < pipeRight &&
+                    birdBottom > pipe.bottomY;
+
+                if (hitTopPipe || hitBottomPipe) {
+                    endGame();
+                }
+            }
+        }
+
+        function endGame() {
+            if (gameOver) return;
+            gameOver = true;
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.font = "32px Arial";
+            ctx.fillStyle = "white";
+            ctx.textAlign = "center";
+            ctx.fillText("게임 오버!", canvas.width / 2, canvas.height / 2 - 30);
+            ctx.fillText("점수 : " + score, canvas.width / 2, canvas.height / 2 + 20);
+        }
+
+        let highScore = Number(localStorage.getItem("flappyHighScore")) || 0;
+        highScoreText.textContent = highScore;
+
+        function updateHighScore() {
+            if (score > highScore) {
+                highScore = score;
+                highScoreText.textContent = highScore;
+                localStorage.setItem("flappyHighScore", highScore);
+            }
+        }
+
+        function gameLoop() {
+            if(gameOver) return;
+            
+            // Effacement + Dessin du fond (Jour ou Nuit)
+            drawBackground();
+
+            if(countdown > 0){
+                drawBird();
+                ctx.font = "80px Arial";
+                ctx.fillStyle = "white";
+                ctx.textAlign = "center";
+                ctx.fillText(countdown, canvas.width / 2, canvas.height / 2);
+
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            
+            moveBird();
+            movePipes();
+            checkCollision();
+        
+            if(gameOver) return;
+
+            drawPipes();
+            drawBird();
+            requestAnimationFrame(gameLoop);
+        }
+
+        setInterval(createPipe, 1500);
+        startCountdown();
+        gameLoop();
+    </script>
+</body>
+
+</html>
