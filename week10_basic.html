@@ -56,6 +56,10 @@
         function moveBird() {
             bird.velocity += bird.gravity;
             bird.y += bird.velocity;
+
+            if(bird.y - bird.radius < 0 || bird.y + bird.radius > canvas.height) {
+                endGame();
+            }
         }
 
         function jump() {
@@ -72,10 +76,19 @@
         canvas.addEventListener("click", jump);
 
         function restart() {
+            if(!gameOver) return;
+
             bird.y = 250;
             bird.velocity = 0;
 
+            pipes.length =  0;
+            scrore = 0;
+            scoreText.textContent = 0;
+
             startCountdown();
+
+            gameOver = false;
+            gameLoop();
         }
 
         let countdown = 3;
@@ -124,11 +137,54 @@
                 }
             }
             for(let i = pipes.length -1 ; i >= 0; i--){
-                if(pipe[i].x + pipeWidth < 0){
+                if(pipes[i].x + pipeWidth < 0){
                     pipes.splice(i, 1);
                 }
             }
 
+        }
+
+        function checkCollision() {
+            for(let pipe of pipes) {
+                const birdLeft = bird.x - bird.radius;
+                const birdRight = bird.x + bird.radius;
+                const birdTop = bird.y - bird.radius;
+                const birdBottom = bird.y + bird.radius;
+
+                const pipeLeft = pipe.x;
+                const pipeRight = pipe.x + pipeWidth;
+
+                const hitTopPipe = 
+                    birdRight > pipeLeft &&
+                    birdLeft < pipeRight &&
+                    birdTop < pipe.topHeight;
+
+
+                const hitBottomPipe = 
+                    birdRight > pipeLeft &&
+                    birdLeft < pipeRight &&
+                    birdBottom  > pipe.bottomY;
+
+                if ( hitTopPipe || hitBottomPipe) {
+                    endGame();
+                } 
+
+
+            }
+           
+        }
+
+        function endGame() {
+            gameOver = false;
+
+            ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.font("32px Arial");
+            ctx.fillStyle = "white";
+            ctx.textAlign = "center";
+            ctx.fillText("게임 오버!", canvas.width / 2, canvas.height / 2 - 30);
+            ctx.fillText("점수 : " + score, canvas.width / 2, canvas.height / 2 + 20);
         }
         
 
@@ -148,6 +204,7 @@
             }
             moveBird();
             movePipes();
+            checkCollision();
             drawBird();
             drawPipes();
             requestAnimationFrame(gameLoop);
